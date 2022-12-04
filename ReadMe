@@ -1,0 +1,319 @@
+[chap32_javaconfig_01 특이사항]
+
+ 1. java 환경설정, java configuration
+   - XML이 아닌 자바 클래스로 스프링 환경 설정을 한다. 
+		
+[진행단계]
+ 
+[XML이 아닌 순수하게 JAVA 코드로 환경설정]
+
+1. chap32_javaconfig_01 프로젝트 생성하세요(복사하지 말고)
+ 1) 탑레벨 패키지 : com.javalab.javaconfig
+ 
+ 2) 프로젝트 버전 변경 
+ 3) pom.xml 버전 변경(서블릿 버전도 변경 2.5-> 3.1.0으로)
+		<!-- Servlet -->
+		<dependency>
+		    <groupId>javax.servlet</groupId>
+		    <artifactId>javax.servlet-api</artifactId>
+		    <version>3.1.0</version>
+		    <scope>provided</scope>
+		</dependency> 
+		<!-- 롬복 -->
+		<!-- 로그백 -->
+		<!-- 마이바티스 -->
+		<!-- junit 버전 4.13 -->
+		<!-- Spring JDBC Template[트랜잭션 관련] -->
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-jdbc</artifactId>
+			<version>${org.springframework-version}</version>
+		</dependency>		
+  -> 디펜던시 추가후에는 반드시 Maven Update 하세요!!
+  
+ 4) 로그 관련 디펜던시와 logback.xml추가
+ 
+ 5) web.xml 수정(네임스페이스 버전변경, 한글 인코딩 추가)
+	<?xml version="1.0" encoding="UTF-8"?>
+	<web-app version="3.1" xmlns="http://java.sun.com/xml/ns/javaee"
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xsi:schemaLocation="http://java.sun.com/xml/ns/javaee 
+		https://java.sun.com/xml/ns/javaee/web-app_3_1.xsd">
+		
+ 6) 실행시켜서 초기 화면 뜨면 OK
+ 
+ 
+ [자바 환경설정]
+ 
+ 1. web.xml 삭제
+ 
+ 2. pom.xml 복사 후 다음 코드 추가
+    <!-- web.xml 없어도 오류 안나도록 -->
+    <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-war-plugin</artifactId>
+        <version>3.2.0</version>
+        <configuration>
+            <failOnMissingWebXml>false</failOnMissingWebXml>
+        </configuration>
+    </plugin>
+
+ 3. root-context.xml / servlet-context.xml 파일 삭제
+
+  
+ 5. 다음 환경설정 패키지 생성후 다음 환경설정 파일 추가
+  - com.javalab.javaconfig.config
+  
+  1) RootConfig 클래스 파일 생성, 내용은 없음
+   - @Configuration 어노테이션만 있으면 됨.
+   
+  2) WebConfig.java 클래스 생성, 생성할때 다음 추상 클래스 상속하고 메소드 3개 오버라이드
+   - AbstractAnnotationConfigDispatcherServletInitializer
+   
+  3) 어플리케이션 실행하면 콘솔 오류는 없지만 404오류남
+  4) log가 많이 나오므로 logback.xml 설정 가지고 올것.
+  
+  5) WebConfig.java 내용 수정
+  	@Override
+	protected Class<?>[] getRootConfigClasses() {
+		System.out.println("AppInitializer : >>>>>>>>>>> getRootConfigClasses()");
+		return new Class<?>[]{RootConfig.class};
+	}
+  
+   6) 실행하면 404 오류, 콘솔에는 오류가 없는 상태
+  
+ 6. RootConfig.java 클래스 다음과 같이 수정
+   
+   @Bean  
+	public DataSource dataSource() {
+		HikariConfig hikariConfig = new HikariConfig();
+		hikariConfig.setDriverClassName("net.sf.log4jdbc.sql.jdbcapi.DriverSpy"); // log4jdbc.log42j 설정후
+		hikariConfig.setJdbcUrl("jdbc:log4jdbc:oracle:thin:@localhost:1521:orcl"); // log4jdbc.log42j 설정후
+		hikariConfig.setUsername("ums");
+		hikariConfig.setPassword("1234");
+		HikariDataSource dataSource = new HikariDataSource(hikariConfig);
+		return dataSource;
+	}
+	
+	@Bean
+    public SqlSessionFactory sqlSessionFactory() throws Exception {
+        SqlSessionFactoryBean sqlSessionFactory = new SqlSessionFactoryBean();
+        sqlSessionFactory.setDataSource(dataSource());
+        return (SqlSessionFactory)sqlSessionFactory.getObject();
+	
+	@Bean	
+	public SqlSessionTemplate getSqlSessionTemplate() throws Exception {
+		SqlSessionTemplate sst = new SqlSessionTemplate(this.sqlSessionFactory());
+		return sst;
+	} 
+	
+	/**
+	 * Transaction Manager Bean Creation from dataSource()
+	 * [주의사항] @Transactional 사용시 PlatformTransactionManager 혹은
+	 *          DataSourceTransactionManager 둘 중 하나의 트랜잭션 관리자만 사용할것. 오류 발생!
+	 */
+	@Bean
+    public PlatformTransactionManager getTransactionManager() 
+    			throws URISyntaxException, GeneralSecurityException, ParseException, IOException {
+		return new DataSourceTransactionManager(this.dataSource());
+    } 	
+ }
+ 
+ 7. RootConfig.java 수정
+  - dataSource()
+  - sqlSessionFactory()
+  - getSqlSessionTemplate()
+  - getTransactionManager()
+  
+ 8. 프로젝트 실행[Run on Server]  
+  - 오류 없으면 단위테스트
+  
+ [단위테스트]
+ 
+ 1. pom.xml에 다음 디펜던시(테스트 라이브러리) 확인
+ 		<!-- Spring Test : 추가 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <version>${spring-version}</version>
+            <scope>test</scope>
+        </dependency>   
+ 
+ 2 com.javalab.javaconfig.dao 패키지 생성
+   - DatasourceTest.java 단위테스트 클래스 생성
+   
+ [비즈니스 로직 관련 패키지 및 vo, 매퍼XML추가]
+ 
+ 1. com.javalab.javaconfig.domain 패키지 생성
+   - QnaBbs.java 도메인(vo)클래스 생성 
+ 2. com.javalab.javaconfig.dao 패키지 생성
+   - IQnaBbsMapperDao 인터페이스 생성
+ 3. 매퍼.XML 파일 생성(복사해올것)
+   - bbsMapper.xml 매퍼 생성
+ 4. com.javalab.javaconfig.service 패키지 생성
+     
+ 5. RootConfig.java 수정
+
+[매퍼 단위테스트 ]
+    
+
+1. ServletConfig.java 클래스 생성
+ 1) ServletConfig.java 클래스 작업
+ 
+ 2) WebConfig.java 클래스 수정작업[중요함]
+  - 기존에는 RootConfig.java만 구현되어 있었음
+  
+2. webConfig.java 수정
+ - ServletConfig.java 관련 사항 추가해야 함.
+
+3. DBConfig.java(옵션) 
+
+4. 어플리케이션 실행해서 웹브라우저에서 게시물 한개 조회 확인(디비 게시물번호 확인후)
+ - http://localhost:8080/bbs/getBbsByNo?no=1
+
+5. RestApi 형태로 YARC에서 조회
+  1) http://localhost:8080/bbs/getQnaBbsList(브라우저)
+  2) http://localhost:8080/bbs/getQnaBbsListSearch
+   - YARC에서 Ajax 요청 보낼것 : {"title":"여기에 조회 제목", "writer":"조회할 작성자"}
+  
+
+
+[메이븐 라이브러리 저장소 변경]
+
+ 4. 메이븐 저장 위치 변경 작업 setting.xml
+	<?xml version="1.0" encoding="UTF-8"?>
+	<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+	          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
+	  <localRepository>D:\javaworks\repository\maven</localRepository>
+	</settings>
+
+
+package com.javalab.javaconfig.config;
+@Configuration
+@EnableAspectJAutoProxy
+@MapperScan(basePackages = "com.javalab.javaconfig.dao")
+//sqlSessionFactoryRef="dataSourceDBCP", 
+//sqlSessionTemplateRef="sqlSessionFactoryBean")
+@EnableTransactionManagement
+@PropertySource("classpath:/database.properties")
+public class DbConfig extends WebMvcConfigurationSupport {
+	@Value("${jdbc.driver}")
+	private String driver;
+	@Value("${jdbc.url}")
+	private String url;
+	@Value("${jdbc.username}")
+	private String username;
+	@Value("${jdbc.password}")
+	private String password;
+	
+
+	/**
+	* DataSource DBCP Connection Bean creation
+	* id : "dataSourceDBCP"
+	* @return
+	*/
+	@Bean
+	public DataSource getDataSourceDBCP() {
+		BasicDataSource bd = new BasicDataSource();
+		bd.setDriverClassName(this.driver);
+		bd.setUrl(this.url);
+		bd.setUsername(this.username);
+		bd.setPassword(this.password);
+		bd.setMaxTotal(10);
+		bd.setMaxIdle(5);
+		bd.setMaxWaitMillis(-1);
+		return bd; 
+	}
+	
+	/**
+	* getSqlSessionFactoryBean Bean creation from getDataSourceDBCP()
+	* @return
+	* @throws Exception
+	*/
+	@Bean
+	public SqlSessionFactory getSqlSessionFactoryBean() throws Exception {
+		SqlSessionFactoryBean sqlSessionFactoryBean = new SqlSessionFactoryBean();
+		Properties props = new Properties();
+		//mapUnderscoreToCamelCase setting
+		props.setProperty("mapUnderscoreToCamelCase", "true");
+		sqlSessionFactoryBean.setConfigurationProperties(props); 
+		//TypeAliases Package route setting
+		sqlSessionFactoryBean.setTypeAliasesPackage("com.javateam.springTransactionAnnotation.domain");
+		//DataSource setting
+		sqlSessionFactoryBean.setDataSource(this.getDataSourceDBCP());
+		//mapper xml route setting 
+		sqlSessionFactoryBean.setMapperLocations(new PathMatchingResourcePatternResolver()
+		.getResources("classpath:com/javateam/springTransactionAnnotation/mapper/*.xml"));
+		/*PathMatchingResourcePatternResolver resolver 
+		= new PathMatchingResourcePatternResolver();
+		Resource[] resources 
+		= resolver.getResources("classpath:com/javateam/springTransactionAnnotation/mapper/*.xml");
+		​ssfb.setMapperLocations(resources);*/
+		// return (SqlSessionFactoryBean) ssfb.getObject();
+		return sqlSessionFactoryBean.getObject();
+	}
+
+	/**
+	* getSqlSessionTemplate Bean Creation from getSqlSessionFactoryBean()
+	* @return
+	* @throws Exception
+	*/
+	@Bean
+	public SqlSessionTemplate getSqlSessionTemplate() throws Exception {
+		SqlSessionTemplate sst = new SqlSessionTemplate(this.getSqlSessionFactoryBean());
+		//= new SqlSessionTemplate((SqlSessionFactory) this.getSqlSessionFactoryBean());
+		return sst;
+	}
+
+	/**
+	* Transaction Manager Bean Creation from getDataSourceDBCP
+	* [주의사항] @Transactional 사용시 PlatformTransactionManager 혹은
+	* DataSourceTransactionManager 둘 중 하나의 트랜잭션 관리자만 사용할것. 오류 발생!
+	* @return
+	* @throws URISyntaxException
+	* @throws GeneralSecurityException
+	* @throws ParseException
+	* @throws IOException
+	*/
+	@Bean
+	public PlatformTransactionManager getTransactionManager() 
+		throws URISyntaxException, GeneralSecurityException, ParseException, IOException {
+		return new DataSourceTransactionManager(this.getDataSourceDBCP());
+	}
+
+	/**
+	 * [주의사항] @Transactional 사용시 PlatformTransactionManager 혹은
+	 * DataSourceTransactionManager 둘 중 하나의 트랜잭션 관리자만 사용할것. 오류 발생!
+	 */
+
+	/*
+	 * @Bean
+	 * public DataSourceTransactionManager getTransactionManager2() {
+	 * DataSourceTransactionManager dstm = new
+	 * DataSourceTransactionManager(this.getDataSourceDBCP());
+	 * return dstm;
+	 * }
+	 */
+
+	/**
+	 * DataSource JDBC Connection
+	 * @return
+	 */
+
+	/*
+	 * @Bean
+	 * public DataSource getDataSourceJDBC() {
+	 * SimpleDriverDataSource sdds = new SimpleDriverDataSource();
+	 * sdds.setDriverClass(oracle.jdbc.OracleDriver.class);
+	 * sdds.setUrl("jdbc:oracle:thin:@localhost:1521:xe");
+	 * sdds.setUsername("java");
+	 * sdds.setPassword("1234");
+	 * return sdds;
+	 * }
+	 * 
+	 */
+
+}
+
+ 

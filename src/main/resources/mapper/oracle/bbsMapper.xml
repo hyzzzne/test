@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+	<mapper namespace="com.javalab.javaconfig.dao.IQnaBbsMapperDao"> <!-- namespace 생성 양식 : 패키지명.인터페이스명  -->
+
+	<!-- Bbs List -->
+	<select id="getQnaBbsList" parameterType="com.javalab.javaconfig.domain.QnaBbs" 
+								resultType="com.javalab.javaconfig.domain.QnaBbs"> 
+		SELECT NO, TITLE, CONTENT, WRITER, HIT, REGDATE
+		FROM BBS
+		WHERE 1 = 1
+		<if test="title != null and title != ''">
+			AND title LIKE '%'||#{title}||'%'
+		</if>
+		<if test="writer != null and writer != ''">
+			AND writer LIKE '%'||#{writer}||'%'
+		</if>
+		ORDER BY NO DESC
+	</select>
+	
+	<!-- 게시물 등록 -->
+	<insert id = "insertBbs" parameterType="com.javalab.javaconfig.domain.QnaBbs">
+		insert into bbs(
+			no, 
+			title, 
+			content, 
+			writer, 
+			hit, 
+			regdate) 
+		values(
+			seq_bbs_no.nextval, 
+			#{title}, 
+			#{content}, 
+			#{writer}, 
+			0, 
+			sysdate)
+	</insert>	
+	
+	<select id="getBbsByNo" parameterType="int" 
+							resultType="com.javalab.javaconfig.domain.QnaBbs"> 
+		SELECT *
+		FROM BBS
+		WHERE NO = #{param1}
+	</select>	
+
+	<update id="updateBbs" parameterType="com.javalab.javaconfig.domain.QnaBbs">
+		update bbs set
+			title=#{title}, 
+			content=#{content}, 
+			writer=#{writer}
+		where no=#{no}		
+	</update>
+	
+	<delete id="deleteBbs" parameterType="int">
+		delete from bbs
+		where no=#{param1}		
+	</delete>		
+	
+</mapper>

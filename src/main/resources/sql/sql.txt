@@ -1,0 +1,13 @@
+
+drop table tbl_board;
+create table tbl_board(
+ 			bno number(5) , 
+			title varchar2(100) not null, 
+			content varchar2(1000), 
+			writer varchar2(50),
+            regdate date default sysdate,
+            updatedate date default sysdate,
+            constraint  pk_tbl_board primary key (bno) 
+);
+
+create sequence seq_board increment by 1 start with 1;
